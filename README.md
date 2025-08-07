@@ -35,6 +35,7 @@ npm install
 Crie um arquivo `.env` na raiz do projeto:
 ```env
 GEMINI_KEYS=sua_chave_gemini_1,sua_chave_gemini_2
+API_KEYS=chave_api1,chave_api2,chave_api3
 OPENAI_API_KEY=sua_chave_openai
 PORT=3000
 NODE_ENV=production

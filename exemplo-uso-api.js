@@ -1,16 +1,29 @@
 // exemplo-uso-api.js
 // Exemplo de como usar a API de análise de jurisprudência - Caso Marcelo Ltda
 
+require('dotenv').config();
 const axios = require('axios');
 
-const API_BASE_URL = 'http://localhost:3000/api';
+// 🔧 CONFIGURAÇÕES A PARTIR DO ARQUIVO .ENV
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000/api';
 
-// 🔑 CHAVES DE API VÁLIDAS (usar qualquer uma das 3)
-const API_KEYS = [
-  'tcu_7k9m2x8v4n6q1w3e5r7t9y2u4i6o8p0a',
-  'tcu_3h5j7k9l1n3m5v7c9x1z4a6s8d0f2g4',
-  'tcu_9q8w7e6r5t4y3u2i1o0p9a8s7d6f5g4h'
-];
+// 🔑 CHAVES DE API VÁLIDAS - lidas do arquivo .env
+const API_KEYS = process.env.API_KEYS
+  ? process.env.API_KEYS.split(',').map(k => k.trim()).filter(Boolean)
+  : [];
+
+if (API_KEYS.length === 0) {
+  console.error('❌ Nenhuma chave de API foi definida no .env. Verifique a variável API_KEYS.');
+  process.exit(1);
+}
+
+// 📊 CONFIGURAÇÕES DE PROCESSAMENTO (do .env)
+const MAX_ACORDAOS = parseInt(process.env.MAX_ACORDAOS) || 50;
+const MAX_RESULTADOS = parseInt(process.env.MAX_RESULTADOS) || 10;
+const REQUEST_TIMEOUT = parseInt(process.env.REQUEST_TIMEOUT) || 120000;
+const HEALTH_CHECK_TIMEOUT = parseInt(process.env.HEALTH_CHECK_TIMEOUT) || 5000;
+const INFO_TIMEOUT = parseInt(process.env.INFO_TIMEOUT) || 10000;
+const AUTH_TEST_TIMEOUT = parseInt(process.env.AUTH_TEST_TIMEOUT) || 5000;
 
 // Usar a primeira chave por padrão
 const API_KEY = API_KEYS[0];
@@ -56,19 +69,18 @@ async function analisarCasoMarceloLtda() {
     console.log('🏢 ANÁLISE DE JURISPRUDÊNCIA - CASO MARCELO LTDA');
     console.log('📋 Licitação: 100 impressoras HP DeskJet por R$ 23 milhões');
     console.log('🚀 Iniciando consulta aos precedentes do TCU...\n');
-    
-    // Fazer requisição para a API com autenticação
+
     const response = await axios.post(`${API_BASE_URL}/analyze`, {
       casoConcreto: casoConcreto,
-      maxAcordaos: 200,    // Analisar até 200 acórdãos para maior cobertura
-      maxResultados: 15    // Buscar até 15 precedentes relevantes
+      maxAcordaos: MAX_ACORDAOS,
+      maxResultados: MAX_RESULTADOS
     }, {
       headers: {
         'Content-Type': 'application/json',
         'X-API-Key': API_KEY,
         'User-Agent': 'TCU-Analysis-Client/1.0'
       },
-      timeout: 300000 // Timeout de 5 minutos devido ao volume de processamento
+      timeout: REQUEST_TIMEOUT
     });
 
     console.log('✅ Análise concluída com sucesso!');
@@ -79,11 +91,10 @@ async function analisarCasoMarceloLtda() {
     console.log(`📚 Total disponível: ${response.data.data.totalDisponiveis}`);
     console.log(`⏰ Processado em: ${response.data.data.processedAt}\n`);
 
-    // Exibir resultados detalhados
     if (response.data.data.acordaosRelevantes.length > 0) {
       console.log('🏛️ PRECEDENTES JURISPRUDENCIAIS RELEVANTES:');
-      console.log('=' .repeat(80));
-      
+      console.log('='.repeat(80));
+
       response.data.data.acordaosRelevantes.forEach((acordao, index) => {
         console.log(`\n📖 ${index + 1}. ACÓRDÃO Nº ${acordao.numeroAcordao}/${acordao.anoAcordao}`);
         console.log(`📌 Título: ${acordao.titulo}`);
@@ -99,11 +110,9 @@ async function analisarCasoMarceloLtda() {
         console.log('-'.repeat(80));
       });
 
-      // Sumário executivo
       console.log(`\n📊 SUMÁRIO EXECUTIVO:`);
       console.log(`📈 Taxa de relevância: ${((response.data.data.totalRelevantes / response.data.data.totalProcessados) * 100).toFixed(1)}%`);
       console.log(`🔍 Precedentes encontrados: ${response.data.data.totalRelevantes} de ${response.data.data.totalProcessados} analisados`);
-      
     } else {
       console.log('⚠️ Nenhum precedente jurisprudencial relevante foi encontrado para este caso específico.');
       console.log('💡 Sugestões:');
@@ -113,16 +122,12 @@ async function analisarCasoMarceloLtda() {
     }
 
     return response.data;
-
   } catch (error) {
     console.error('\n❌ ERRO NA ANÁLISE:');
-    
     if (error.response) {
-      // Erro da API
       console.error(`📊 Status HTTP: ${error.response.status}`);
       console.error(`🔧 Código do erro: ${error.response.data.code}`);
       console.error(`💬 Mensagem: ${error.response.data.message}`);
-      
       if (error.response.status === 401 || error.response.status === 403) {
         console.error('🔑 Problema de autenticação - verifique a API Key');
       } else if (error.response.status === 429) {
@@ -134,17 +139,17 @@ async function analisarCasoMarceloLtda() {
       console.error('⏰ Timeout na requisição - o processamento demorou muito');
       console.error('💡 Tente reduzir maxAcordaos ou maxResultados');
     } else {
-      // Erro de rede ou outro
       console.error(`🌐 Erro de conexão: ${error.message}`);
     }
   }
 }
 
-// Verificar saúde da API
 async function verificarSaudeAPI() {
   try {
     console.log('🏥 Verificando saúde da API...');
-    const response = await axios.get(`${API_BASE_URL}/health`);
+    const response = await axios.get(`${API_BASE_URL}/health`, {
+      timeout: HEALTH_CHECK_TIMEOUT
+    });
     console.log(`✅ ${response.data.message}`);
     console.log(`⏰ Timestamp: ${response.data.timestamp}`);
     return true;
@@ -154,14 +159,14 @@ async function verificarSaudeAPI() {
   }
 }
 
-// Obter informações da API
 async function obterInfoAPI() {
   try {
     console.log('📋 Obtendo informações da API...');
     const response = await axios.get(`${API_BASE_URL}/info`, {
       headers: {
         'X-API-Key': API_KEY
-      }
+      },
+      timeout: INFO_TIMEOUT
     });
     console.log(`✅ API: ${response.data.message}`);
     console.log(`🔢 Versão: ${response.data.version}`);
@@ -176,16 +181,15 @@ async function obterInfoAPI() {
   }
 }
 
-// Função para testar diferentes chaves API
 async function testarChavesAPI() {
   console.log('🔐 Testando autenticação com as chaves disponíveis...\n');
-  
   for (let i = 0; i < API_KEYS.length; i++) {
     try {
       const response = await axios.get(`${API_BASE_URL}/info`, {
         headers: {
           'X-API-Key': API_KEYS[i]
-        }
+        },
+        timeout: AUTH_TEST_TIMEOUT
       });
       console.log(`✅ Chave ${i + 1} (${API_KEYS[i].substring(0, 12)}...): VÁLIDA`);
     } catch (error) {
@@ -198,38 +202,47 @@ async function testarChavesAPI() {
   }
 }
 
-// Função principal
+function exibirConfiguracoes() {
+  console.log('\n📊 CONFIGURAÇÕES ATIVAS:');
+  console.log('='.repeat(50));
+  console.log(`🌐 URL da API: ${API_BASE_URL}`);
+  console.log(`⏰ Request Timeout: ${REQUEST_TIMEOUT}ms`);
+  console.log(`📊 Max Acórdãos: ${MAX_ACORDAOS}`);
+  console.log(`📋 Max Resultados: ${MAX_RESULTADOS}`);
+  console.log(`🏥 Health Check Timeout: ${HEALTH_CHECK_TIMEOUT}ms`);
+  console.log(`📋 Info Timeout: ${INFO_TIMEOUT}ms`);
+  console.log(`🔐 Auth Test Timeout: ${AUTH_TEST_TIMEOUT}ms`);
+  console.log(`🔑 Chaves API configuradas: ${API_KEYS.length}`);
+  console.log('='.repeat(50));
+}
+
 async function main() {
   console.log('🏛️ SISTEMA DE ANÁLISE DE JURISPRUDÊNCIA TCU');
   console.log('📋 Caso: Marcelo Ltda - Impressoras HP por R$ 23 milhões');
-  console.log('=' .repeat(80));
-  
-  // 1. Verificar saúde da API
+  console.log('='.repeat(80));
+
+  exibirConfiguracoes();
+
   console.log('\n1️⃣ VERIFICAÇÃO DE CONECTIVIDADE');
   const apiHealth = await verificarSaudeAPI();
-  
   if (!apiHealth) {
     console.error('❌ API não está disponível. Verifique se o servidor está rodando.');
     return;
   }
 
-  // 2. Testar autenticação
   console.log('\n2️⃣ VERIFICAÇÃO DE AUTENTICAÇÃO');
   await testarChavesAPI();
-  
-  // 3. Obter informações da API
+
   console.log('\n3️⃣ INFORMAÇÕES DA API');
   await obterInfoAPI();
-  
-  // 4. Executar análise principal
+
   console.log('\n4️⃣ ANÁLISE JURISPRUDENCIAL');
   await analisarCasoMarceloLtda();
-  
+
   console.log('\n🏁 ANÁLISE FINALIZADA');
-  console.log('=' .repeat(80));
+  console.log('='.repeat(80));
 }
 
-// Exemplos de uso com CURL
 console.log(`
 🔧 EXEMPLOS DE USO COM CURL:
 
@@ -237,29 +250,33 @@ console.log(`
 curl -X POST ${API_BASE_URL}/analyze \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: ${API_KEY}" \\
-  --data '${JSON.stringify({
-    casoConcreto: casoConcreto.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim(),
-    maxAcordaos: 100,
-    maxResultados: 10
-  }, null, 0)}'
+  --connect-timeout 30 \\
+  --max-time ${REQUEST_TIMEOUT / 1000} \\
+  --data '{
+    "casoConcreto": "A empresa Marcelo Ltda foi vencedora de licitação pública realizada pelo Governo do Estado do Amazonas em 2025, tendo como objeto o fornecimento de 100 impressoras multifuncionais modelo HP DeskJet Ink 2874, pelo valor total de R$ 23 milhões. Análise de possível sobrepreço e especificação restritiva.",
+    "maxAcordaos": ${MAX_ACORDAOS},
+    "maxResultados": ${MAX_RESULTADOS}
+  }'
 
 📋 VERIFICAR SAÚDE (sem autenticação):
-curl ${API_BASE_URL}/health
+curl --connect-timeout 10 --max-time ${HEALTH_CHECK_TIMEOUT / 1000} ${API_BASE_URL}/health
 
 📋 INFORMAÇÕES DA API (com autenticação):
-curl -H "X-API-Key: ${API_KEY}" ${API_BASE_URL}/info
+curl -H "X-API-Key: ${API_KEY}" \\
+     --connect-timeout 10 \\
+     --max-time ${INFO_TIMEOUT / 1000} \\
+     ${API_BASE_URL}/info
 
 🔑 USANDO AUTHORIZATION HEADER:
 curl -X POST ${API_BASE_URL}/analyze \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer ${API_KEY}" \\
-  --data '{"casoConcreto":"Caso Marcelo Ltda...","maxAcordaos":50}'
+  --data '{"casoConcreto":"Caso Marcelo Ltda...","maxAcordaos":${MAX_ACORDAOS}}'
 
 🔀 CHAVES ALTERNATIVAS DISPONÍVEIS:
-${API_KEYS.map((key, i) => `   Chave ${i + 1}: ${key}`).join('\n')}
+${API_KEYS.map((key, i) => `   Chave ${i + 1}: ${key.substring(0, 12)}...`).join('\n')}
 `);
 
-// Executar se for chamado diretamente
 if (require.main === module) {
   main().catch(error => {
     console.error('\n💥 ERRO FATAL:', error.message);
@@ -267,12 +284,17 @@ if (require.main === module) {
   });
 }
 
-module.exports = { 
-  analisarCasoMarceloLtda, 
-  verificarSaudeAPI, 
-  obterInfoAPI, 
+module.exports = {
+  analisarCasoMarceloLtda,
+  verificarSaudeAPI,
+  obterInfoAPI,
   testarChavesAPI,
+  exibirConfiguracoes,
   API_KEYS,
   API_KEY,
-  casoConcreto
+  casoConcreto,
+  API_BASE_URL,
+  MAX_ACORDAOS,
+  MAX_RESULTADOS,
+  REQUEST_TIMEOUT
 };
